@@ -64,7 +64,8 @@ if __name__ == '__main__':
         wandb_run._label(repo='CycleGAN-and-pix2pix')
     # 1. Read  checkpoint dir to find all available generator checkpoints
     checkpoints_dir = Path(opt.checkpoints_dir)
-    wandb_run.config = parse_config_file(str(checkpoints_dir / opt.name / "train_opt.txt"))
+    if opt.use_wandb:
+        wandb_run._config = parse_config_file(str(checkpoints_dir / opt.name / "train_opt.txt"))
     epochs = {int(n) for file in os.listdir(checkpoints_dir / opt.name)
               if (n := file.split("_")[0]).isdigit()}
 
