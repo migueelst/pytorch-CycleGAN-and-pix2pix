@@ -6,6 +6,7 @@ See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-a
 """
 import os
 from pathlib import Path
+from collections.abc import Callable
 from options.eval_options import EvalOptions
 import subprocess
 import random
@@ -22,7 +23,7 @@ except ImportError:
     print('Warning: wandb package cannot be found. The option "--use_wandb" will result in error.')
 
 
-def get_folder_features(folder_path: str, feat_model, img_transform: function = None):
+def get_folder_features(folder_path: str, feat_model, img_transform: Callable = None):
     # Use custom transformations for FID
     # TODO: get num workers from command line
     if img_transform:
