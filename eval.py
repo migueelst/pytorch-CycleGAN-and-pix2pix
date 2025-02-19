@@ -58,9 +58,9 @@ if __name__ == '__main__':
                         "--direction", opt.direction, "--load_size", str(opt.load_size), "--crop_size", str(opt.crop_size)])
         # 3. Move all fake images and real images to a temporary folder
         fake_dir = tmp_dir / "fakes" / f"epoch_{epoch}"
-        fake_dir.mkdir(parents=True)
+        fake_dir.mkdir(exist_ok=True, parents=True)
         real_dir = tmp_dir / "real"
-        real_dir.mkdir(parents=True)
+        real_dir.mkdir(exist_ok=True, parents=True)
         test_images_dir = Path(opt.results_dir) / opt.name / f"test_{epoch}" / "images" 
         for img_name in os.listdir(test_images_dir):
             if "_fake_B" in img_name:
