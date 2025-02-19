@@ -23,15 +23,15 @@ except ImportError:
     print('Warning: wandb package cannot be found. The option "--use_wandb" will result in error.')
 
 
-def get_folder_features(folder_path: str, feat_model, img_transform: Callable = None):
+def calculate_features_from_folder(folder_path: str, feat_model, img_transform: Callable = None):
     # Use custom transformations for FID
     # TODO: get num workers from command line
     if img_transform:
-        feats = get_folder_features(folder_path, feat_model, num_workers=8, num=None,
+        feats = get_folder_features(folder_path, model=feat_model, num_workers=8, num=None,
                 shuffle=False, seed=0, batch_size=8, device=torch.device("cuda"),
                 mode="clean", custom_image_tranform=img_transform, description="", verbose=True)
     else:
-        feats = get_folder_features(folder_path, feat_model, num_workers=8, num=None,
+        feats = get_folder_features(folder_path, model=feat_model, num_workers=8, num=None,
                 shuffle=False, seed=0, batch_size=8, device=torch.device("cuda"),
                 mode="clean",  description="", verbose=True)
     return feats
@@ -76,9 +76,9 @@ if __name__ == '__main__':
                 return np.array(out_pil)
             print("Getting features for real images for metric calculations")
             feature_extractor = build_feature_extractor("clean", "cuda", use_dataparallel=False)
-            real_feats = get_folder_features(str(real_dir), feature_extractor, fn_transform)
+            real_feats = calculate_features_from_folder(str(real_dir), feature_extractor, fn_transform)
         print("Calculating FID ...")
-        fake_feats = get_folder_features(str(fake_dir), feature_extractor)
+        fake_feats = calculate_features_from_folder(str(fake_dir), feature_extractor)
         # 4. Calculate the clean_fid between both folders
         fid_score = fid_from_feats(real_feats, fake_feats)
         print(f"FID for epoch {epoch}: {fid_score}")
