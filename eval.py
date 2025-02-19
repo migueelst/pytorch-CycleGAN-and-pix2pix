@@ -27,11 +27,11 @@ def get_folder_features(folder_path: str, feat_model, img_transform: Callable = 
     # Use custom transformations for FID
     # TODO: get num workers from command line
     if img_transform:
-        feats = get_folder_features(folder_path, model=feat_model, num_workers=8, num=None,
+        feats = get_folder_features(folder_path, feat_model, num_workers=8, num=None,
                 shuffle=False, seed=0, batch_size=8, device=torch.device("cuda"),
                 mode="clean", custom_image_tranform=img_transform, description="", verbose=True)
     else:
-        feats = get_folder_features(folder_path, model=feat_model, num_workers=8, num=None,
+        feats = get_folder_features(folder_path, feat_model, num_workers=8, num=None,
                 shuffle=False, seed=0, batch_size=8, device=torch.device("cuda"),
                 mode="clean",  description="", verbose=True)
     return feats
@@ -50,7 +50,6 @@ if __name__ == '__main__':
 
     # Folder for FID calculation
     tmp_dir = Path(f"fid_{random.randint(0, 10000)}")
-    feature_extractor = build_feature_extractor("clean", "cuda", use_dataparallel=False)
     for i, epoch in enumerate(sorted(list(epochs))):
         print(f"Calculating FID for epoch {epoch}")
         # 2. Call test.py using subproc, set epoch to be each of the numbers found in 1), the last call should be using "latest"
@@ -75,16 +74,19 @@ if __name__ == '__main__':
                 x_pil = Image.fromarray(x)
                 out_pil = transforms.Resize(opt.load_size, interpolation=transforms.InterpolationMode.LANCZOS)(x_pil)
                 return np.array(out_pil)
+            print("Getting features for real images for metric calculations")
+            feature_extractor = build_feature_extractor("clean", "cuda", use_dataparallel=False)
             real_feats = get_folder_features(str(real_dir), feature_extractor, fn_transform)
+        print("Calculating FID ...")
         fake_feats = get_folder_features(str(fake_dir), feature_extractor)
         # 4. Calculate the clean_fid between both folders
         fid_score = fid_from_feats(real_feats, fake_feats)
         print(f"FID for epoch {epoch}: {fid_score}")
-        print(f"Calculating KID compute_kid() for epoch {epoch}")
+        print(f"Calculating KID compute_kid() ...")
         kid_score = compute_kid(str(fake_dir), str(real_dir))
         print(f"KID for epoch {epoch}: {kid_score}")
-        print(f"Calculating KID maual() for epoch {epoch}")
+        print(f"Calculating KID manual() ...")
         kid_manual = kid_from_feats(real_feats, fake_feats)
-        print(f"KID manual for epoch {epoch}: {kid_score}")
+        print(f"KID for epoch {epoch}: {kid_manual}")
         # 5. Log results to wandb
         print("--------------------------------")
