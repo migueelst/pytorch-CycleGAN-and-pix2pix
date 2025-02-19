@@ -25,9 +25,8 @@ if __name__ == '__main__':
     checkpoints_dir = Path(opt.checkpoints_dir)
     epochs = {int(n) for file in os.listdir(checkpoints_dir / opt.name)
               if (n := file.split("_")[0]).isdigit()}
-    # Folders for FID calculation
-    tmp_dir = Path(f"tmp_{random.randint(0, 10000)}")
-    test_images_dir = Path(opt.results_dir) / "test_latest" / "images" 
+    # Folder for FID calculation
+    tmp_dir = Path(f"fid_{random.randint(0, 10000)}")
     for epoch in sorted(list(epochs)):
         print(f"Calculating FID for epoch {epoch}")
         # 2. Call test.py using subproc, set epoch to be each of the numbers found in 1), the last call should be using "latest"
@@ -39,7 +38,8 @@ if __name__ == '__main__':
         real_dir = tmp_dir / f"epoch_{epoch}" / "real"
         fake_dir.mkdir(parents=True)
         real_dir.mkdir(parents=True)
-        for img_name in test_images_dir:
+        test_images_dir = Path(opt.results_dir) / opt.name / f"test_{epoch}" / "images" 
+        for img_name in os.listdir(test_images_dir):
             if "_fake_B" in img_name:
                 shutil.copy(test_images_dir / img_name, fake_dir / img_name)
             elif "_real_B" in img_name:
