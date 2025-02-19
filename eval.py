@@ -45,10 +45,10 @@ if __name__ == '__main__':
             elif "_real_B" in img_name:
                 shutil.copy(test_images_dir / img_name, real_dir / img_name)
         # 4. Calculate the clean_fid between both folders
-        fid = fid.compute_fid(str(fake_dir), str(real_dir))
+        fid_score = fid.compute_fid(str(fake_dir), str(real_dir))
         print(f"FID for epoch {epoch}: {fid}")
         print(f"Calculating KID for epoch {epoch}")
-        kid = fid.compute_kid(str(fake_dir), str(real_dir))
+        kid_score = fid.compute_kid(str(fake_dir), str(real_dir))
         print(f"KID for epoch {epoch}: {fid}")
         # 5. Log results to wandb
         print("--------------------------------")
