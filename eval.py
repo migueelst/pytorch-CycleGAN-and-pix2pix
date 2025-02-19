@@ -11,7 +11,7 @@ from options.eval_options import EvalOptions
 import subprocess
 import random
 import shutil
-from cleanfid.fid import kernel_distance, get_folder_features, build_feature_extractor, fid_from_feats, compute_kid
+from cleanfid.fid import kernel_distance, get_folder_features, build_feature_extractor, fid_from_feats
 import numpy as np
 import torch
 from torchvision import transforms
@@ -23,6 +23,22 @@ except ImportError:
     print('Warning: wandb package cannot be found. The option "--use_wandb" will result in error.')
 
 
+def parse_config_file(file_path: str):
+    config = {}
+    
+    with open(file_path, 'r') as file:
+        for line in file:
+            if ":" not in line:
+                continue
+            key, value = line.split(':', 1) 
+            key = key.strip()
+            value = value.split('[')[0].strip()  # Remove default values in brackets
+            config[key] = value
+    
+    return config
+
+
+# TODO: log hyperpaarams used for training to wandb by reading them from the txt file stored in the checkpoint
 def calculate_features_from_folder(folder_path: str, feat_model, img_transform: Callable = None):
     # Use custom transformations for FID
     # TODO: get num workers from command line
@@ -41,21 +57,28 @@ def kid_from_feats(feats1: np.array, feats2: np.array):
 
 
 if __name__ == '__main__':
-    opt = EvalOptions().parse()  # get eval options
+    opt = EvalOptions().parse()  # TODO: add argument tto cleanup files
+    # initialize logger
+    if opt.use_wandb:
+        wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name)
+        wandb_run._label(repo='CycleGAN-and-pix2pix')
     # 1. Read  checkpoint dir to find all available generator checkpoints
     checkpoints_dir = Path(opt.checkpoints_dir)
+    wandb_run.config = parse_config_file(str(checkpoints_dir / opt.name / "train_opt.txt"))
     epochs = {int(n) for file in os.listdir(checkpoints_dir / opt.name)
               if (n := file.split("_")[0]).isdigit()}
-    
 
     # Folder for FID calculation
     tmp_dir = Path(f"fid_{random.randint(0, 10000)}")
-    for i, epoch in enumerate(sorted(list(epochs))):
+    for i, epoch in enumerate(sorted(list(epochs))[:4]):  # Just for dev purposes
         print(f"Calculating FID for epoch {epoch}")
         # 2. Call test.py using subproc, set epoch to be each of the numbers found in 1), the last call should be using "latest"
+        opt.use_wandb = False
         subprocess.run(["python", "test.py", "--dataroot", opt.dataroot, "--epoch", str(epoch),
                         "--name", opt.name, "--model", opt.model, "--dataset_mode", opt.dataset_mode,
-                        "--direction", opt.direction, "--load_size", str(opt.load_size), "--crop_size", str(opt.crop_size)])
+                        "--direction", opt.direction, "--load_size", str(opt.load_size),
+                        "--crop_size", str(opt.crop_size)])
+        opt.use_wandb = True
         # 3. Move all fake images and real images to a temporary folder
         fake_dir = tmp_dir / "fakes" / f"epoch_{epoch}"
         fake_dir.mkdir(exist_ok=True, parents=True)
@@ -66,10 +89,9 @@ if __name__ == '__main__':
             if "_fake_B" in img_name:
                 shutil.copy(test_images_dir / img_name, fake_dir / img_name)
             elif "_real_B" in img_name and i == 0:
-                # Only calculate reference features in the first iteration
                 shutil.copy(test_images_dir / img_name, real_dir / img_name)
         if i == 0:
-            # TODO: later on move create a metrics base class and from that one create an FID class
+            # TODO: later on create a metrics base class and from that one create an FID class
             def fn_transform(x):
                 x_pil = Image.fromarray(x)
                 out_pil = transforms.Resize(opt.load_size, interpolation=transforms.InterpolationMode.LANCZOS)(x_pil)
@@ -81,12 +103,9 @@ if __name__ == '__main__':
         fake_feats = calculate_features_from_folder(str(fake_dir), feature_extractor)
         # 4. Calculate the clean_fid between both folders
         fid_score = fid_from_feats(real_feats, fake_feats)
+        print(f"Calculating KID ...")
+        kid_score = kid_from_feats(real_feats, fake_feats) * 1000  # To make it easier to read
         print(f"FID for epoch {epoch}: {fid_score}")
-        print(f"Calculating KID compute_kid() ...")
-        kid_score = compute_kid(str(fake_dir), str(real_dir))
         print(f"KID for epoch {epoch}: {kid_score}")
-        print(f"Calculating KID manual() ...")
-        kid_manual = kid_from_feats(real_feats, fake_feats)
-        print(f"KID for epoch {epoch}: {kid_manual}")
         # 5. Log results to wandb
-        print("--------------------------------")
+        wandb_run.log({"metrics/epoch": epoch, "metrics/fid": fid_score, "metrics/kid": kid_score})
