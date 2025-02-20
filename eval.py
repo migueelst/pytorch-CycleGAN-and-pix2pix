@@ -38,9 +38,11 @@ def parse_config_file(file_path: str):
     return config
 
 
+# TODO: add option to also get the max (in case another metric is added and works differently)
 def get_summary_metrics(scores: list, epochs: list):
-    min_index, min_value = min(enumerate(scores), key=lambda x: x[1])
-    return min_value, epochs[min_index]
+    # The lower the FID/KID the better
+    i, min_score = min(enumerate(scores), key=lambda x: x[1])
+    return min_score, epochs[i]
 
 
 # TODO: log hyperpaarams used for training to wandb by reading them from the txt file stored in the checkpoint
@@ -62,32 +64,28 @@ def kid_from_feats(feats1: np.array, feats2: np.array):
 
 
 if __name__ == '__main__':
-    opt = EvalOptions().parse()  # TODO: add argument tto cleanup files
-    # initialize logger
+    opt = EvalOptions().parse()  # TODO: add argument to cleanup files
     if opt.use_wandb:
         wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name, config={})
         wandb_run._label(repo='CycleGAN-and-pix2pix')
-    # 1. Read  checkpoint dir to find all available generator checkpoints
+    # We want to log the params that were used to train the model, not the ones being used to call the evaluation script
     checkpoints_dir = Path(opt.checkpoints_dir)
     if opt.use_wandb:
-        wandb_run.config = parse_config_file(str(checkpoints_dir / opt.name / "train_opt.txt"))
-    epochs = {int(n) for file in os.listdir(checkpoints_dir / opt.name)
-              if (n := file.split("_")[0]).isdigit()}
-
+        wandb_run.config.update = parse_config_file(str(checkpoints_dir / opt.name / "train_opt.txt"))
     # Folder for FID calculation
     tmp_dir = Path(f"fid_{random.randint(0, 10000)}")
     fid_scores, kid_scores = [], []
+    epochs = {int(n) for file in os.listdir(checkpoints_dir / opt.name)
+              if (n := file.split("_")[0]).isdigit()}
     sorted_epochs = sorted(list(epochs))
-    for i, epoch in enumerate(sorted_epochs[:4]):  # Just for dev purposes
+    for i, epoch in enumerate(sorted_epochs):
         print(f"Calculating FID for epoch {epoch}")
-        # 2. Call test.py using subproc, set epoch to be each of the numbers found in 1), the last call should be using "latest"
-        opt.use_wandb = False
+        # TODO: if I have time dont call test but rather inference directly here and store only the fake images in the fakes folder
         subprocess.run(["python", "test.py", "--dataroot", opt.dataroot, "--epoch", str(epoch),
                         "--name", opt.name, "--model", opt.model, "--dataset_mode", opt.dataset_mode,
                         "--direction", opt.direction, "--load_size", str(opt.load_size),
-                        "--crop_size", str(opt.crop_size)])
-        opt.use_wandb = True
-        # 3. Move all fake images and real images to a temporary folder
+                        "--crop_size", str(opt.crop_size)], stdout=subprocess.DEVNULL)
+        # TODO: this logic could be encapsulated in the metrics class
         fake_dir = tmp_dir / "fakes" / f"epoch_{epoch}"
         fake_dir.mkdir(exist_ok=True, parents=True)
         real_dir = tmp_dir / "real"
