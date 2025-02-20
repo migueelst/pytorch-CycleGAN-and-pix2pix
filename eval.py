@@ -38,14 +38,6 @@ def parse_config_file(file_path: str):
     return config
 
 
-# TODO: add option to also get the max (in case another metric is added and works differently)
-def get_summary_metrics(scores: list, epochs: list):
-    # The lower the FID/KID the better
-    i, min_score = min(enumerate(scores), key=lambda x: x[1])
-    return min_score, epochs[i]
-
-
-# TODO: log hyperpaarams used for training to wandb by reading them from the txt file stored in the checkpoint
 def calculate_features_from_folder(folder_path: str, feat_model, img_transform: Callable = None):
     # Use custom transformations for FID
     # TODO: get num workers from command line
@@ -72,9 +64,10 @@ if __name__ == '__main__':
     checkpoints_dir = Path(opt.checkpoints_dir)
     if opt.use_wandb:
         wandb_run.config.update = parse_config_file(str(checkpoints_dir / opt.name / "train_opt.txt"))
+        wandb_run.define_metric("fid", summary="min")
+        wandb_run.define_metric("kid", summary="min")
     # Folder for FID calculation
     tmp_dir = Path(f"fid_{random.randint(0, 10000)}")
-    fid_scores, kid_scores = [], []
     epochs = {int(n) for file in os.listdir(checkpoints_dir / opt.name)
               if (n := file.split("_")[0]).isdigit()}
     sorted_epochs = sorted(list(epochs))
@@ -114,11 +107,4 @@ if __name__ == '__main__':
         print(f"FID for epoch {epoch}: {fid}")
         print(f"KID for epoch {epoch}: {kid}")
         # 5. Log results to wandb
-        wandb_run.log({"metrics/epoch": epoch, "metrics/fid": fid, "metrics/kid": kid})
-        fid_scores.append(fid)
-        kid_scores.append(kid)
-    for label, scores in zip(["fid", "kid"], [fid_scores, kid_scores]):
-        best_score, best_epoch = get_summary_metrics(scores, sorted_epochs)
-        wandb_run.summary[f"best_{label}"] = best_score
-        wandb_run.summary[f"best_{label}_epoch"] = best_epoch
-    wandb_run.summary.update()
+        wandb_run.log({"epoch": epoch, "fid": fid, "kid": kid})
